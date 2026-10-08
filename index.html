@@ -83,12 +83,13 @@ function calc(m){
  const limVar=renda-fixT-cardPend-goalsM,varLeft=limVar-sum(R_.filter(x=>x.type=='out'&&!x.fixed&&!x.card));
  const byCat={};R_.filter(x=>x.type=='out').forEach(x=>byCat[x.cat]=(byCat[x.cat]||0)+x.amount);
  const tO=t.filter(x=>x.type=='out'),paidO=sum(tO.filter(x=>x.paid)),cardO=sum(tO.filter(x=>!x.paid&&x.card)),othO=sum(tO.filter(x=>!x.paid&&!x.card)),vFixT=sum(vFix),totOut=paidO+cardO+othO+vFixT;
+ const cardAll=sum(tO.filter(x=>x.card)),vIncT=sum(vInc),inAll=sum(t.filter(x=>x.type=='in'))+vIncT;
  const alerts=[];let warn=false;
  Object.entries(db.bud).forEach(([c,v])=>{if(v>0){const p=(byCat[c]||0)/v;if(p>=1){alerts.push('🔴 Orçamento de '+c+' estourado ('+Math.round(p*100)+'%).');warn=1}else if(p>=.8){alerts.push('⚠️ Você já usou '+Math.round(p*100)+'% do orçamento de '+c+'.');warn=1}}});
  const lvl=proj<db.set.min?'r':(varLeft<0||warn)?'y':'g';
  if(lvl=='r')alerts.unshift('🔴 Saldo projetado abaixo do mínimo definido.');
  if(!alerts.length)alerts.push('🟢 Você está dentro do orçamento este mês.');
- return{paidO,cardO,othO,vFixT,totOut,dim,day,left,t,saldo,inR,outR,fixR,varR,pIn,pOut,est,proj,renda,limVar,varLeft,byCat,alerts,lvl,vInc,vFix,pend,
+ return{cardAll,vIncT,inAll,paidO,cardO,othO,vFixT,totOut,dim,day,left,t,saldo,inR,outR,fixR,varR,pIn,pOut,est,proj,renda,limVar,varLeft,byCat,alerts,lvl,vInc,vFix,pend,
   comp:renda?Math.round((outR+pOut)/renda*100):0,perDay:left>0?Math.round(varLeft/left):varLeft};
 }
 const patr=()=>db.acc.reduce((s,a)=>s+accBal(a.id),0);
@@ -132,13 +133,15 @@ V.dash=()=>{const c=calc(month),L={g:'🟢 Dentro do planejado',y:'🟡 Atençã
  const cd=(t,v,cl='')=>`<div class="card"><h3>${t}</h3><div class="big ${cl}">${v}</div></div>`;
  const next=[...c.pend.map(x=>({d:x.date,t:x.desc,a:x.amount,type:x.type})),...c.vInc.map(r=>({d:month+'-'+String(r.day).padStart(2,'0'),t:r.desc+' (fixa)',a:r.amount,type:'in',k:'inc',id:r.id})),...c.vFix.map(r=>({d:month+'-'+String(r.day).padStart(2,'0'),t:r.desc+' (fixo)',a:r.amount,type:'out',k:'fix',id:r.id}))].sort((a,b)=>a.d>b.d?1:-1);
  setTimeout(()=>drawCharts(c),0);
- return`<div class="card banner ${c.lvl}"><b>${L}</b> — Saldo projetado no final do mês: <b class="${c.proj<0?'neg':''}">${R(c.proj)}</b>
+ return`<div class="grid" style="margin-bottom:14px">
+ <div class="card"><h3>💸 Gastos do mês</h3><div class="big neg">${R(c.totOut)}</div>
+  <div class="row"><span>Lançamentos + fixos a lançar</span><b>${R(c.totOut-c.cardAll)}</b></div><div class="row"><span>💳 Cartão (lançado + parcelas)</span><b>${R(c.cardAll)}</b></div></div>
+ <div class="card"><h3>💰 Entradas do mês</h3><div class="big pos">${R(c.inAll)}</div>
+  <div class="row"><span>Lançadas</span><b>${R(c.inAll-c.vIncT)}</b></div><div class="row"><span>🔁 Fixas a lançar</span><b>${R(c.vIncT)}</b></div></div>
+ <div class="card"><h3>📈 Resultado (entradas − gastos)</h3><div class="big ${c.inAll-c.totOut<0?'neg':'pos'}">${R(c.inAll-c.totOut)}</div>
+  <div class="sm" style="margin-top:8px">${c.inAll-c.totOut<0?'Gastos acima das entradas previstas':'Sobra prevista no mês'}</div></div></div>
+ <div class="card banner ${c.lvl}"><b>${L}</b> — Saldo projetado no final do mês: <b class="${c.proj<0?'neg':''}">${R(c.proj)}</b>
   <div class="sm">Estimativa de variáveis restantes: ${R(c.est)} (${c.left} dias) · Saldo real = só o que já foi pago/recebido</div></div>
- <div class="card" style="margin-bottom:14px"><h3>Total de gastos do mês (tudo que entra em ${mName(month)})</h3><div class="big neg">${R(c.totOut)}</div>
- <div class="sm" style="margin:4px 0 8px">Já pago + cartão/parcelas + pendentes + fixos ainda não lançados</div>
- <div class="row"><span>✅ Já pago</span><b>${R(c.paidO)}</b></div><div class="row"><span>💳 Cartão e parcelas a pagar</span><b>${R(c.cardO)}</b></div>
- <div class="row"><span>🕒 Outros pendentes</span><b>${R(c.othO)}</b></div><div class="row"><span>🔁 Fixos a lançar</span><b>${R(c.vFixT)}</b></div>
- <div class="bar"><i style="width:${c.totOut?Math.round(c.paidO/c.totOut*100):0}%"></i></div><div class="sm">${c.totOut?Math.round(c.paidO/c.totOut*100):0}% já pago</div></div>
  <div class="grid stats">${cd('Saldo atual',R(c.saldo))}${cd('Entradas do mês',R(c.inR)+`<div class="sm">+ ${R(c.pIn)} a receber</div>`,'pos')}${cd('Gastos do mês',R(c.outR)+`<div class="sm">+ ${R(c.totOut-c.outR)} a pagar</div>`,'neg')}${cd('Saldo projetado',R(c.proj))}
  ${cd('Gastos fixos',R(c.fixR))}${cd('Gastos variáveis',R(c.varR))}${cd('Disponível p/ gastar',R(Math.max(c.varLeft,0))+`<div class="sm">${R(c.perDay)}/dia · ${c.left} dias</div>`)}${cd('Patrimônio total',R(patr()))}</div>
  <div class="grid" style="margin-top:12px"><div class="card"><h3>Resumo mensal</h3>
