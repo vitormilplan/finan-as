@@ -1,4 +1,4 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="pt-BR"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Painel Financeiro</title>
@@ -48,13 +48,13 @@ canvas{max-height:250px}
 </style></head><body>
 <header><b>💰 Painel Financeiro</b><div><button class="ic" onclick="mm(-1)">◀</button><b id="ml"></b><button class="ic" onclick="mm(1)">▶</button></div></header>
 <nav id="nav"></nav><main id="v"></main>
-<button class="pr fab" onclick="editTx()">+ Novo lançamento</button>
+<button class="pr fab" onclick="openNew()" type="button">+ Novo lançamento</button>
 <dialog id="m"></dialog>
 <script>
 const KEY='fin_v1',$=s=>document.querySelector(s),uid=()=>Math.random().toString(36).slice(2,10);
 const ymd=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 const R=c=>(c/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}),D=s=>s.split('-').reverse().join('/');
-const toC=v=>Math.round(parseFloat(String(v).replace(/\./g,'').replace(',','.'))*100)||0,toIn=c=>(c/100).toFixed(2).replace('.',',');
+const toC=v=>{let s=String(v).replace(/[^\d,.-]/g,'');if(s.includes(','))s=s.replace(/\./g,'').replace(',','.');else if(/^-?\d{1,3}(\.\d{3})+$/.test(s))s=s.replace(/\./g,'');return Math.round(parseFloat(s)*100)||0},toIn=c=>(c/100).toFixed(2).replace('.',',');
 const CATS='Moradia,Alimentação,Transporte,Combustível,Lazer,Saúde,Educação,Compras,Assinaturas,Financiamentos,Impostos,Viagens,Investimentos,Outros'.split(',');
 let db=JSON.parse(localStorage.getItem(KEY)||'null')||{tx:[],cats:CATS,acc:[{id:'a1',name:'Conta corrente',type:'Conta corrente',init:0}],cards:[],inc:[],fix:[],bud:{},goals:[],set:{min:0}};
 const save=()=>localStorage.setItem(KEY,JSON.stringify(db));
@@ -100,12 +100,13 @@ function form(title,fields,data,cb){
   if(f.t=='check')return`<label class="ck"><input type="checkbox" name="${f.k}" ${v?'checked':''}> ${f.l}</label>`;
   return`<label>${f.l}</label>`+(f.t=='sel'?`<select name="${f.k}">${opts(f.o,v)}</select>`:`<input name="${f.k}" type="${f.t||'text'}" value="${esc(v)}" ${f.t=='money'?'inputmode="decimal"':''}>`)}).join('')+
   `<div class="row"><button type="button" onclick="$('#m').close()">Cancelar</button><button class="pr" value="ok">Salvar</button></div></form>`;
- m.querySelector('form').onsubmit=e=>{const o={};fields.forEach(f=>{const el=m.querySelector(`[name=${f.k}]`);o[f.k]=f.t=='check'?el.checked:f.t=='money'?toC(el.value):f.t=='number'?parseInt(el.value)||0:el.value});cb(o);save();go(tab)};
+ m.querySelector('form').onsubmit=e=>{const o={};fields.forEach(f=>{const el=m.querySelector(`[name=${f.k}]`);o[f.k]=f.t=='check'?el.checked:f.t=='money'?toC(el.value):f.t=='number'?parseInt(el.value)||0:el.value});if(cb(o)===false){e.preventDefault();return}save();go(tab)};
  m.showModal();
 }
 const srcOpts=()=>[...db.acc.map(a=>['a:'+a.id,'🏦 '+a.name]),...db.cards.map(c=>['c:'+c.id,'💳 '+c.name])];
 const catOpts=()=>db.cats.map(c=>[c,c]);
 
+function openNew(){try{const m=$('#m');if(m.open)m.close();editTx()}catch(e){alert('Erro ao abrir o formulário: '+e.message)}}
 function editTx(id,dup){
  const x=id?{...db.tx.find(t=>t.id==id)}:{type:'out',date:ymd(new Date()),paid:true,fixed:false};
  if(x.id)x.src=x.card?'c:'+x.card:'a:'+x.acc;
@@ -116,7 +117,8 @@ function editTx(id,dup){
   {k:'fixed',l:'Gasto fixo',t:'check'},{k:'paid',l:'Pago / recebido',t:'check'},{k:'note',l:'Observação'}],
   {...x,amount:x.amount?toIn(x.amount):''},o=>{
   const[k,i]=o.src.split(':');o.acc=k=='a'?i:null;o.card=k=='c'?i:null;delete o.src;
-  if(id&&!dup)Object.assign(db.tx.find(t=>t.id==id),o);else db.tx.push({...o,id:uid()});});
+  if(!o.date||!o.desc.trim()||o.amount<=0){alert('Preencha data, descrição e um valor maior que zero.');return false}
+  if(id&&!dup)Object.assign(db.tx.find(t=>t.id==id),o);else db.tx.push({...o,id:uid()});month=o.date.slice(0,7)});
 }
 const delTx=id=>{if(confirm('Excluir lançamento?')){db.tx=db.tx.filter(t=>t.id!=id);save();go(tab)}};
 function launch(kind,rid){ // lança recorrência no mês
@@ -131,7 +133,7 @@ V.dash=()=>{const c=calc(month),L={g:'🟢 Dentro do planejado',y:'🟡 Atençã
  setTimeout(()=>drawCharts(c),0);
  return`<div class="card banner ${c.lvl}"><b>${L}</b> — Saldo projetado no final do mês: <b class="${c.proj<0?'neg':''}">${R(c.proj)}</b>
   <div class="sm">Estimativa de variáveis restantes: ${R(c.est)} (${c.left} dias) · Saldo real = só o que já foi pago/recebido</div></div>
- <div class="grid stats">${cd('Saldo atual',R(c.saldo))}${cd('Entradas do mês',R(c.inR),'pos')}${cd('Gastos do mês',R(c.outR),'neg')}${cd('Saldo projetado',R(c.proj))}
+ <div class="grid stats">${cd('Saldo atual',R(c.saldo))}${cd('Entradas do mês',R(c.inR)+`<div class="sm">+ ${R(c.pIn)} a receber</div>`,'pos')}${cd('Gastos do mês',R(c.outR)+`<div class="sm">+ ${R(c.pOut)} a pagar</div>`,'neg')}${cd('Saldo projetado',R(c.proj))}
  ${cd('Gastos fixos',R(c.fixR))}${cd('Gastos variáveis',R(c.varR))}${cd('Disponível p/ gastar',R(Math.max(c.varLeft,0))+`<div class="sm">${R(c.perDay)}/dia · ${c.left} dias</div>`)}${cd('Patrimônio total',R(patr()))}</div>
  <div class="grid" style="margin-top:12px"><div class="card"><h3>Resumo mensal</h3>
   <div class="row"><span>Resultado do mês</span><b>${R(c.inR-c.outR)}</b></div><div class="row"><span>Renda comprometida</span><b>${c.comp}%</b></div>
